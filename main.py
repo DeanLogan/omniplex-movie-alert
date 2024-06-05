@@ -13,8 +13,6 @@ from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
 def search_cinema(driver, location):
     driver.get('https://www.omniplex.ie/whatson')
-    # click cookie agreement
-    wait_and_click(driver, By.XPATH, '//*[@id="acceptAll"]')
     # getting location dropdown
     select_dropdown_option(driver, 'homeSelectCinema', location)
     elements = driver.find_elements(by=By.CLASS_NAME, value="OMP_inlineBlock")
@@ -62,17 +60,18 @@ def select_dropdown_option(driver, select_id, option_id):
     option_element.click()
 
 def format_movie_title_to_link(movie_title):
-    movie_title = movie_title.replace(" ", "-").lower()
+    movie_title = movie_title.replace(" & ", " ")
     movie_title = movie_title.replace(":", "")
     movie_title = movie_title.replace(")", "-")
     movie_title = movie_title.replace("(", "")
+    movie_title = movie_title.replace(" ", "-").lower()
     return movie_title
 
 #### Reading and Writing to File Functions ####
 
 def get_diff_movies(driver, location):
     movies_on_website = search_cinema(driver, location)
-    movies_on_file = read_file_to_arr("movie_list_"+location+".txt")
+    movies_on_file = read_file_to_arr("movie_lists/"+location+".txt")
     return [movie for movie in movies_on_website if movie not in movies_on_file]
 
 def write_arr_to_file(arr, filename):
@@ -87,16 +86,17 @@ def read_file_to_arr(filename):
 
 #### Email Functions ####
 
-def send_email(recipient, body):
+def send_email(recipients, body):
+    smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465) # use Gmail's SMTP server
     sender = os.environ.get('EMAIL_GMAIL') # sender email
     password = os.environ.get('APP_PASSWORD_GMAIL')
-    message = MIMEText(body, 'html')
-    message['Subject'] = "🎬 Movie Updates for " + datetime.now().strftime('%d %b %Y') + " 🎬"
-    message['From'] = sender
-    message['To'] = recipient
-    smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465) # use Gmail's SMTP server
     smtp.login(sender, password)
-    smtp.sendmail(sender, recipient, message.as_string())
+    for recipient in recipients:
+        message = MIMEText(body, 'html')
+        message['Subject'] = "🎬 Movie Updates: " + datetime.now().strftime('%d %b %Y') + " 🎬"
+        message['From'] = sender
+        message['To'] = recipient
+        smtp.sendmail(sender, recipient, message.as_string())
     smtp.quit()
 
 def format_email_body(driver, location, movies):
@@ -124,17 +124,25 @@ def format_email_body(driver, location, movies):
     return body
 
 def main():
+    # opens browser in headless mode and navigates to omniplex website to click on cookie consent
     options = FirefoxOptions()
     options.headless = True
     driver = webdriver.Firefox(options=options)
-    location = "carrickfergus"
-    diff_movies = get_diff_movies(driver, location)
-    if diff_movies:
-        load_dotenv()
-        body = format_email_body(driver, location, diff_movies)
-        send_email(os.environ.get('RECIPIENT'), body)
-        # write_arr_to_file(diff_movies, "movie_list_"+location+".txt")
+    driver.get('https://www.omniplex.ie/whatson')
+    wait_and_click(driver, By.XPATH, '//*[@id="acceptAll"]')
+    # check locations for new movies
+    locations = ["carrickfergus", "antrim", "larne"]
+    body = ""
+    for location in locations:
+        diff_movies = get_diff_movies(driver, location)
+        if diff_movies:
+            load_dotenv()
+            body += format_email_body(driver, location, diff_movies)
+            # write_arr_to_file(diff_movies, "movie_list_"+location+".txt")
     driver.close()
+    if body:
+        recipients = [os.environ.get('RECIPIENT1'), os.environ.get('RECIPIENT2')]
+        send_email(recipients, body)
 
 if __name__ == '__main__':
     main()
