@@ -1,6 +1,8 @@
 import os
 import shutil
+import stat
 import subprocess
+import zipfile
 
 def create_package_folder():
     # Create package folder
@@ -15,26 +17,8 @@ def copy_files():
     shutil.copy("movie_alerts.py", "package")
     shutil.copy("aws_storage.py", "package")
 
-    # Copy .env into package folder
-    shutil.copy(".env", "package")
-    
-    # Copy geckodriver into package folder
-    shutil.copy("geckodriver", "package")
-    
-    # Make geckodriver executable
-    os.chmod("package/geckodriver", 0o755)
-
 def copy_files_test():
     shutil.copy("main.py", "package")
-
-    # Copy .env into package folder
-    shutil.copy(".env", "package")
-    
-    # Copy geckodriver into package folder
-    shutil.copy("geckodriver", "package")
-    
-    # Make geckodriver executable
-    os.chmod("package/geckodriver", 0o755)
 
 def create_zip():
     # Save current directory

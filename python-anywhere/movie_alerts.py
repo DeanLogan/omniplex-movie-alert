@@ -3,14 +3,11 @@ import time
 import smtplib
 from datetime import datetime
 from selenium import webdriver
-from dotenv import load_dotenv
 from email.mime.text import MIMEText
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.chrome.options import Options as ChromeOptions
-
-from aws_storage import add_file, get_file_from_bucket
 
 #### Web Scraping Functions ####
 
@@ -86,16 +83,13 @@ def get_diff_movies(driver, location):
     return [movie for movie in movies_on_website if movie not in movies_on_file], movies_on_website
 
 def write_arr_to_file(arr, filename):
-    filepath = "/tmp/"+filename
-    with open(filepath, 'w') as f:
+    with open(filename, 'w') as f:
         for s in arr:
             f.write(s + '\n')
-    add_file(filepath, filename)
 
 def read_file_to_arr(filename):
-    filepath = get_file_from_bucket(filename)
-    with open(filepath, 'r') as file:
-        lines = file.readlines()
+    with open(filename, 'r') as f:
+        lines = f.readlines()
     return [line.strip() for line in lines]
 
 #### Email Functions ####
@@ -138,8 +132,12 @@ def format_email_body(driver, location, movies):
     return body
 
 def main():
+    print("opening browser")
     # opens browser in headless mode and navigates to omniplex website to click on cookie consent
     options = ChromeOptions()
+    options.add_argument("--headless")  # Ensure GUI is off.
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     options.headless = True
     driver = webdriver.Chrome(options=options)
     driver.get('https://www.omniplex.ie/whatson')
@@ -151,7 +149,6 @@ def main():
     for location in locations:
         diff_movies, movies_on_website = get_diff_movies(driver, location)
         if diff_movies:
-            load_dotenv()
             body += format_email_body(driver, location, diff_movies)
             # write_arr_to_file(movies_on_website, location+".txt")
     driver.close()
