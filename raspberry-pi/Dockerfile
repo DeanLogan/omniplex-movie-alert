@@ -1,4 +1,4 @@
-FROM python:3.9.1
+FROM balenalib/raspberry-pi-python:3.9.1
 
 WORKDIR /app
 
@@ -6,19 +6,30 @@ COPY requirements.txt .
 
 COPY . .
 
-RUN apt-get update -y
+RUN apt-get update -y && \
+    apt-get install -y \
+    wget \
+    unzip \
+    gnupg \
+    ca-certificates \
+    lsb-release \
+    software-properties-common
 
-RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+# Add the repository key for Chromium
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
 
-RUN apt-get install -y ./google-chrome-stable_current_amd64.deb
+# Add the Chromium repository to sources list
+RUN echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list
 
-RUN wget https://storage.googleapis.com/chrome-for-testing-public/126.0.6478.61/linux64/chromedriver-linux64.zip
+# Install Chromium browser (arm version)
+RUN apt-get update -y && \
+    apt-get install -y chromium-browser
 
-RUN apt-get install -y unzip
-
-RUN unzip chromedriver-linux64.zip
-
-RUN mv chromedriver-linux64/chromedriver /usr/bin/chromedriver
+# Download ChromeDriver for arm architecture
+RUN wget https://chromedriver.storage.googleapis.com/87.0.4280.88/chromedriver_linux64.zip && \
+    unzip chromedriver_linux64.zip && \
+    mv chromedriver /usr/bin/chromedriver && \
+    chmod +x /usr/bin/chromedriver
 
 RUN pip install -r requirements.txt
 

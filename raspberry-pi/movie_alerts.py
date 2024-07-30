@@ -58,7 +58,10 @@ def get_movie_info(driver, location, movie_title):
         dateObj = datetime.fromtimestamp(int(date.get_attribute('data-pick')) / 1000)
         available_dates.append(dateObj.strftime('%d %b %Y'))
     movie_info["dates"] = available_dates
-    img_element = driver.find_element(By.CLASS_NAME, 'OMP_imageRounded')
+    try:
+        img_element = driver.find_element(By.CLASS_NAME, 'OMP_imageRounded')
+    except Exception as e:
+        return None
     movie_info["img"] = img_element.get_attribute('src')
     # adds movie info to cache
     movie_cache[movie_title] = movie_info
@@ -117,7 +120,7 @@ def read_file_to_arr(filename):
 def send_email(recipients, subject, body):
     smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465) # use Gmail's SMTP server
     sender = os.environ.get('EMAIL_GMAIL') # sender email
-    password = os.environ.get('APP_PASSWORD_GMAIL')
+    password = os.environ.get('APP_PASSWORD_GMAIL') # sender app password
     smtp.login(sender, password)
     for recipient in recipients:
         message = MIMEText(body, 'html')
@@ -132,22 +135,27 @@ def format_email_body(driver, location, movies):
     body += "<h2>New movies at " + location + "</h2>\n"
     for movie in movies:
         movie_info = get_movie_info(driver, location, movie)
-        body += "<div>\n"
-        body += "<h3><a href="+movie_info["link"]+">" + movie_info["title"] + "</a></h3>\n"
-        body += "<table style='width: 100%; margin-bottom: 20px;'>\n"
-        body += "<tr>\n"
-        body += "<td style='vertical-align: top; width:160px;'>\n"
-        body += '<img src="' + movie_info["img"] + '" alt="' + movie_info["title"] + '" style="width: 150px; height: 225px;">\n'
-        body += "</td>\n"
-        body += "<td style='vertical-align: top; padding-left: 0;'>\n"
-        body += '<ul style="margin: 0; padding: 0; list-style-type: none;">\n'
-        for date in movie_info["dates"]:
-            body += "<li>" + date + "</li>\n"
-        body += "</ul>\n"
-        body += "</td>\n"
-        body += "</tr>\n"
-        body += "</table>\n"
-        body += "</div>\n"
+        if movie_info != None:
+            body += "<div>\n"
+            body += "<h3><a href="+movie_info["link"]+">" + movie_info["title"] + "</a></h3>\n"
+            body += "<table style='width: 100%; margin-bottom: 20px;'>\n"
+            body += "<tr>\n"
+            body += "<td style='vertical-align: top; width:160px;'>\n"
+            body += '<img src="' + movie_info["img"] + '" alt="' + movie_info["title"] + '" style="width: 150px; height: 225px;">\n'
+            body += "</td>\n"
+            body += "<td style='vertical-align: top; padding-left: 0;'>\n"
+            body += '<ul style="margin: 0; padding: 0; list-style-type: none;">\n'
+            for date in movie_info["dates"]:
+                body += "<li>" + date + "</li>\n"
+            body += "</ul>\n"
+            body += "</td>\n"
+            body += "</tr>\n"
+            body += "</table>\n"
+            body += "</div>\n"
+        else:
+            body += "<div>\n"
+            body += "<h3>Unable to access info for " + movie + "</h3>\n"
+            body += "</div>\n"
     body += "</div>\n"
     return body
 
@@ -204,4 +212,6 @@ def extract_email_info():
 
 
 if __name__ == '__main__':
+    load_dotenv()
+    # extract_email_info()
     main()
