@@ -51,7 +51,7 @@ def get_movie_info(driver, location, movie_title):
     movie_info["link"] = 'https://www.omniplex.ie/whatson/movie/showtimes/'+movie_title_link
     driver.get(movie_info["link"])
     select_dropdown_option(driver, 'homeSelectCinema', location)
-    wait_and_click(driver, By.XPATH, '/html/body/div[9]/div[1]/div/div/div/div/div/a[8]/span')
+    # wait_and_click(driver, By.XPATH, '/html/body/div[9]/div[1]/div/div/div/div/div/a[8]/span')
     dates = driver.find_elements(by=By.CSS_SELECTOR, value=".picker__day.picker__day--infocus:not([aria-disabled='true'])")
     available_dates = []
     for date in dates:
@@ -83,6 +83,8 @@ def format_movie_title_to_link(movie_title):
         movie_title = movie_title.replace(" & ", " ")
         movie_title = movie_title.replace("'", "-")
         movie_title = movie_title.replace(":", "")
+        movie_title = movie_title.replace("%", "")
+        movie_title = movie_title.replace(" - ", " ")
         movie_title = movie_title.replace(")", "")
         movie_title = movie_title.replace(",", "")
         movie_title = movie_title.replace("(", "")

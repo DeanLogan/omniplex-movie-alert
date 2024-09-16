@@ -170,3 +170,8 @@ notes.txt
 geckodriver-v0.34.0-win64.zip
 output.txt
 package.zip
+
+# Random
+tmp/
+raspberry-pi/tmp/
+.json
