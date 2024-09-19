@@ -172,6 +172,6 @@ output.txt
 package.zip
 
 # Random
-tmp/
+tmp/*.json
 raspberry-pi/tmp/
 .json

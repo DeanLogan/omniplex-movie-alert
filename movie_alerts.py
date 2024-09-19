@@ -186,13 +186,15 @@ def main():
             write_arr_to_file(movies_on_website, location+".txt")
     driver.close()
     for item in email_list:
-        print("sending email to: ", item['email'])
         body = ""
         for location in item['locations']:
             if location in location_cache and location_cache[location] != "": # checks if the location has been cached and the cache is not empty
                 body += location_cache[location]
         if body:
+            print("sending email to: ", item['email'])
             send_email([item['email']], "🎬 Movie Updates: " + datetime.now().strftime('%d %b %Y') + " 🎬", body)
+        else:
+            print("no email to send to: "+item['email'])
     print("finished")
 
 #### Cache Functions ####

@@ -57,6 +57,7 @@ def delete_all_files_in_bucket():
 def create_bucket():
     s3.create_bucket(Bucket='movie-lists')
 
-# create_bucket()
-# add_file('antrim.txt', 'antrim.txt')
-# check_files_in_bucket()
+if __name__ == "__main__":
+    add_file("tmp/carrickfergus.txt")
+    add_file("tmp/antrim.txt")
+    check_files_in_bucket()
