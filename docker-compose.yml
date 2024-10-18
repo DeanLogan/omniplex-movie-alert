@@ -5,4 +5,3 @@ services:
     container_name: movie-alerts
     env_file:
       - .env
-    restart: unless-stopped

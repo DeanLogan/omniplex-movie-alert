@@ -58,6 +58,6 @@ def create_bucket():
     s3.create_bucket(Bucket='movie-lists')
 
 if __name__ == "__main__":
-    add_file("tmp/carrickfergus.txt")
-    add_file("tmp/antrim.txt")
+    add_file("tmp/carrickfergus.txt", "carrickfergus.txt")
+    add_file("tmp/antrim.txt", "antrim.txt")
     check_files_in_bucket()
