@@ -175,4 +175,4 @@ package.zip
 tmp/*.json
 raspberry-pi/tmp/
 .json
-tmp/
+tmp

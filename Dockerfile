@@ -16,4 +16,4 @@ RUN mv chromedriver-linux64/chromedriver /usr/bin/chromedriver
 
 RUN pip install -r requirements.txt
 
-ENTRYPOINT ["python", "movie_alerts.py"]
+ENTRYPOINT ["python", "main.py"]
