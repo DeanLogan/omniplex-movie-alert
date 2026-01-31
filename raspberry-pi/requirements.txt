@@ -1,4 +1,0 @@
-selenium
-python-dotenv
-boto3
-urllib3

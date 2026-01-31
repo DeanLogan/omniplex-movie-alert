@@ -1,7 +1,0 @@
-services:
-  app:
-    build: .
-    image: movie-alerts-image
-    container_name: movie-alerts
-    env_file:
-      - .env
