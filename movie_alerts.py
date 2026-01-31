@@ -11,6 +11,9 @@ from aws_storage import add_file, get_file_from_bucket
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
+BROWSER_TIMEOUT = 30
+SLEEP_INTERVAL = 1
+
 WHATS_ON_LINK = 'https://www.omniplex.ie/whatson'
 DROPDOWN_OPTION = 'homeSelectCinema'
 SHOWTIMES_PAGE = '/movie/showtimes/'
@@ -40,12 +43,16 @@ ERROR_INVALID_LOCATION = 'INVALID LOCATION'
 ERROR_MOVIE_TITLE_LINK = 'ERROR IN MOVIE TITLE LINK'
 ERROR_READING_EMAIL_LIST = 'ERROR READING EMAIL LIST'
 
+movie_cache = {} # cache for storing the movie info for each movie
+location_cache = {} # cache for storing the email body for each of the locations
+
 #### Web Scraping Functions ####
 
-def search_cinema(driver, location):
+def _navigate_to_cinema_page(driver, location):
     driver.get(WHATS_ON_LINK)
-    # getting location dropdown
     select_dropdown_option(driver, DROPDOWN_OPTION, location)
+
+def _extract_movie_titles(driver):
     elements = driver.find_elements(by=By.CLASS_NAME, value=CLASS_INLINE_BLOCK)
     h3_elements = [element for element in elements if element.tag_name == 'h3']
     movies_on_website = []
@@ -53,6 +60,10 @@ def search_cinema(driver, location):
         if element.text != '':
             movies_on_website.append(element.text)
     return movies_on_website
+
+def search_cinema(driver, location):
+    _navigate_to_cinema_page(driver, location)
+    return _extract_movie_titles(driver)
 
 def select_dropdown_option(driver, select_id, option_id):
     select_element = driver.find_element(By.ID, select_id)
@@ -64,10 +75,30 @@ def select_dropdown_option(driver, select_id, option_id):
         driver.close()
         os._exit(0)
 
+def _navigate_to_movie_page(driver, location, movie_url):
+    driver.get(movie_url)
+    select_dropdown_option(driver, DROPDOWN_OPTION, location)
+
+def _extract_available_dates(driver):
+    dates = driver.find_elements(by=By.CSS_SELECTOR, value=CSS_AVAILABLE_DATES)
+    available_dates = []
+    for date in dates:
+        timestamp = int(date.get_attribute('data-pick')) / 1000
+        date_obj = datetime.fromtimestamp(timestamp)
+        available_dates.append(date_obj.strftime(DATE_FORMAT))
+    return available_dates
+
+def _extract_movie_image_url(driver):
+    try:
+        img_element = driver.find_element(By.CLASS_NAME, CLASS_IMAGE_ROUNDED)
+        return img_element.get_attribute('src')
+    except Exception:
+        return None
+
 def get_movie_info(driver, location, movie_title):
-    # check if movie is already in cache
     if movie_title in movie_cache:
         return movie_cache[movie_title]
+    
     movie_info = {
         "title": movie_title,
         "dates": [],
@@ -75,23 +106,16 @@ def get_movie_info(driver, location, movie_title):
         "link": "",
     }
     movie_title_link = format_movie_title_to_link(movie_title)
-    print(movie_title_link)
-    movie_info["link"] = WHATS_ON_LINK+SHOWTIMES_PAGE+movie_title_link
-    driver.get(movie_info["link"])
-    select_dropdown_option(driver, DROPDOWN_OPTION, location)
-    # wait_and_click(driver, By.XPATH, '/html/body/div[9]/div[1]/div/div/div/div/div/a[8]/span')
-    dates = driver.find_elements(by=By.CSS_SELECTOR, value=CSS_AVAILABLE_DATES)
-    available_dates = []
-    for date in dates:
-        dateObj = datetime.fromtimestamp(int(date.get_attribute('data-pick')) / 1000)
-        available_dates.append(dateObj.strftime(DATE_FORMAT))
-    movie_info["dates"] = available_dates
-    try:
-        img_element = driver.find_element(By.CLASS_NAME, CLASS_IMAGE_ROUNDED)
-    except Exception as e:
+    movie_info["link"] = WHATS_ON_LINK + SHOWTIMES_PAGE + movie_title_link
+    
+    _navigate_to_movie_page(driver, location, movie_info["link"])
+    
+    movie_info["dates"] = _extract_available_dates(driver)
+    movie_info["img"] = _extract_movie_image_url(driver)
+    
+    if movie_info["img"] is None:
         return None
-    movie_info["img"] = img_element.get_attribute('src')
-    # adds movie info to cache
+    
     movie_cache[movie_title] = movie_info
     return movie_info
 
@@ -126,9 +150,7 @@ def format_movie_title_to_link(movie_title):
 
 def get_diff_movies(driver, location):
     movies_on_website = search_cinema(driver, location)
-    print(movies_on_website)
     movies_on_file = read_file_to_arr(location+".txt")
-    print(movies_on_file)
     return [movie for movie in movies_on_website if movie not in movies_on_file], movies_on_website
 
 def write_arr_to_file(arr, filename):
@@ -190,47 +212,7 @@ def format_email_body(driver, location, movies):
     body += "</div>\n"
     return body
 
-def main():
-    print("starting")
-    # opens browser in headless mode and navigates to omniplex website to click on cookie consent
-    options = ChromeOptions()
-    options.headless = True
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(options=options)
-    driver.get(WHATS_ON_LINK)
-    driver.set_page_load_timeout(30)
-    print("wating for cookie consent")
-    wait_and_click(driver, By.XPATH, XPATH_COOKIE_CONSENT)
-    # check locations for new movies
-    email_list, locations = extract_email_info()
-    body = ""
-    print("checking locations: ", locations)
-    for location in locations:
-        diff_movies, movies_on_website = get_diff_movies(driver, location)
-        if diff_movies:
-            load_dotenv()
-            location_cache[location] = format_email_body(driver, location, diff_movies) # add formatted body for location to cache 
-            write_arr_to_file(movies_on_website, location+TXT_EXTENSION)
-    driver.close()
-    for item in email_list:
-        body = ""
-        for location in item['locations']:
-            if location in location_cache and location_cache[location] != "": # checks if the location has been cached and the cache is not empty
-                body += location_cache[location]
-        if body:
-            print("sending email to: ", item['email'])
-            send_email([item['email']], EMAIL_SUBJECT_PREFIX + datetime.now().strftime(DATE_FORMAT) + EMAIL_SUBJECT_SUFFIX, body)
-        else:
-            print("no email to send to: "+item['email'])
-    print("finished")
-
 #### Cache Functions ####
-
-movie_cache = {} # cache for storing the movie info for each movie
-
-location_cache = {} # cache for storing the email body for each of the locations
 
 def extract_email_info():
     filepath = get_file_from_bucket(EMAIL_LIST_FILE)
@@ -243,8 +225,58 @@ def extract_email_info():
     locations = list(set(locations))
     return data, locations
 
+def _setup_chrome_driver():
+    options = ChromeOptions()
+    options.headless = True
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(BROWSER_TIMEOUT)
+    return driver
+
+def _initialise_browser():
+    driver = _setup_chrome_driver()
+    driver.get(WHATS_ON_LINK)
+    wait_and_click(driver, By.XPATH, XPATH_COOKIE_CONSENT)
+    return driver
+
+def _process_location(driver, location):
+    diff_movies, movies_on_website = get_diff_movies(driver, location)
+    if diff_movies:
+        load_dotenv()
+        location_cache[location] = format_email_body(driver, location, diff_movies)
+        write_arr_to_file(movies_on_website, location + TXT_EXTENSION)
+
+def _process_all_locations(driver, locations):
+    for location in locations:
+        _process_location(driver, location)
+
+def _build_email_body_for_user(user_locations):
+    body = ""
+    for location in user_locations:
+        if location in location_cache and location_cache[location] != "":
+            body += location_cache[location]
+    return body
+
+def _send_user_email(user_email, user_locations):
+    body = _build_email_body_for_user(user_locations)
+    if body:
+        subject = EMAIL_SUBJECT_PREFIX + datetime.now().strftime(DATE_FORMAT) + EMAIL_SUBJECT_SUFFIX
+        send_email([user_email], subject, body)
+    else:
+        print("no email to send to: " + user_email)
+
+def _send_all_user_emails(email_list):
+    for item in email_list:
+        _send_user_email(item['email'], item['locations'])
 
 if __name__ == '__main__':
-    load_dotenv()
-    # extract_email_info()
-    main()
+    driver = _initialise_browser()
+    try:
+        email_list, locations = extract_email_info()
+        _process_all_locations(driver, locations)
+        driver.close()
+        _send_all_user_emails(email_list)
+    finally:
+        print("finished")
