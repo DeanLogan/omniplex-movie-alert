@@ -4,8 +4,6 @@ from dotenv import load_dotenv
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
 
 AWS_SERVICE_S3 = 's3'
-DEFAULT_S3_ENDPOINT = 'https://s3.eu-north-1.amazonaws.com'
-DEFAULT_AWS_REGION = 'eu-north-1'
 BUCKET_NAME = 'movie-lists'
 
 HTTP_FORBIDDEN = '403'
@@ -29,10 +27,10 @@ load_dotenv()
 
 s3 = boto3.client(
     AWS_SERVICE_S3,
-    endpoint_url=os.getenv(ENV_S3_ENDPOINT_URL, DEFAULT_S3_ENDPOINT),
+    endpoint_url=os.getenv(ENV_S3_ENDPOINT_URL),
     aws_access_key_id=os.getenv(ENV_AWS_ACCESS_KEY_ID),
     aws_secret_access_key=os.getenv(ENV_AWS_SECRET_ACCESS_KEY),
-    region_name=os.getenv(ENV_AWS_REGION, DEFAULT_AWS_REGION)
+    region_name=os.getenv(ENV_AWS_REGION)
 )
 
 def add_file(dir_local_file, filename):
@@ -45,7 +43,7 @@ def check_files_in_bucket():
         print(f" - {obj[S3_KEY_FIELD]}")
 
 def get_file_from_bucket(filename):
-    s3 = boto3.client(AWS_SERVICE_S3)
+    s3 = boto3.client(AWS_SERVICE_S3, region_name=os.getenv(ENV_AWS_REGION)
     temp_file_path = os.path.join(TMP_DIRECTORY, filename)
     
     try:
@@ -78,3 +76,9 @@ def delete_all_files_in_bucket():
 
 def create_bucket():
     s3.create_bucket(Bucket=BUCKET_NAME)
+
+if __name__ == "__main__":
+    get_file_from_bucket("antrim.txt")
+    get_file_from_bucket("carrickfergus.txt")
+    get_file_from_bucket("larne.txt")
+    get_file_from_bucket("email_list.json")
