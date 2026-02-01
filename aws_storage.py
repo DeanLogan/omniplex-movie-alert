@@ -76,9 +76,3 @@ def delete_all_files_in_bucket():
 
 def create_bucket():
     s3.create_bucket(Bucket=BUCKET_NAME)
-
-if __name__ == "__main__":
-    get_file_from_bucket("antrim.txt")
-    get_file_from_bucket("carrickfergus.txt")
-    get_file_from_bucket("larne.txt")
-    get_file_from_bucket("email_list.json")
