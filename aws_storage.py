@@ -43,7 +43,7 @@ def check_files_in_bucket():
         print(f" - {obj[S3_KEY_FIELD]}")
 
 def get_file_from_bucket(filename):
-    s3 = boto3.client(AWS_SERVICE_S3, region_name=os.getenv(ENV_AWS_REGION)
+    s3 = boto3.client(AWS_SERVICE_S3, region_name=os.getenv(ENV_AWS_REGION))
     temp_file_path = os.path.join(TMP_DIRECTORY, filename)
     
     try:

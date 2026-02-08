@@ -23,16 +23,38 @@ resource "aws_iam_role_policy" "ecs_execution_policy" {
       {
         Effect = "Allow"
         Action = [
-          "ecr:GetAuthorizationToken",
+          "ecr:GetAuthorizationToken"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "ecr:BatchCheckLayerAvailability",
           "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
+          "ecr:BatchGetImage"
+        ]
+        Resource = aws_ecr_repository.movie_alerts.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "logs:CreateLogStream",
-          "logs:PutLogEvents",
+          "logs:PutLogEvents"
+        ]
+        Resource = "${aws_cloudwatch_log_group.scraper.arn}:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "ssm:GetParameters",
           "kms:Decrypt"
         ]
-        Resource = "*"
+        Resource = [
+          aws_ssm_parameter.gmail_app_password.arn,
+          aws_ssm_parameter.error_email.arn,
+          aws_ssm_parameter.sender_email.arn
+        ]
       }
     ]
   })
@@ -66,7 +88,7 @@ resource "aws_iam_role_policy" "ecs_task_s3_policy" {
         "s3:PutObject",
         "s3:ListBucket"
       ]
-      Resources = [
+      Resource = [
         aws_s3_bucket.movie_lists.arn,
         "${aws_s3_bucket.movie_lists.arn}/*"
       ]

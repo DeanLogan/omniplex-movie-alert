@@ -2,10 +2,8 @@ resource "aws_ssm_parameter" "gmail_app_password" {
   name        = "/movie-alerts/prod/gmail_app_password"
   description = "Gmail app password for movie alerts"
   type        = "SecureString"
-
-  value = var.gmail_app_password
-
-  overwrite = false
+  value       = var.gmail_app_password
+  overwrite   = true
 
   tags = {
     App     = "movie-alerts"
@@ -19,6 +17,7 @@ resource "aws_ssm_parameter" "error_email" {
   description = "Error notification email"
   type        = "String"
   value       = var.error_email
+  overwrite   = true
 
   tags = {
     App     = "movie-alerts"
@@ -32,6 +31,7 @@ resource "aws_ssm_parameter" "sender_email" {
   description = "Sender email address"
   type        = "String"
   value       = var.sender_email
+  overwrite   = true
 
   tags = {
     App     = "movie-alerts"

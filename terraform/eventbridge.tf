@@ -3,22 +3,9 @@ resource "aws_iam_role" "eventbridge_ecs" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "events.amazonaws.com" }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "eventbridge_ecs" {
-  name = "movie-alerts-eventbridge-ecs"
-  role = aws_iam_role.eventbridge_ecs.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = ["ecs:RunTask"]
-      Resource = aws_ecs_task_definition.scraper.arn
     }]
   })
 }
@@ -35,8 +22,8 @@ data "aws_subnets" "public" {
     values = [data.aws_vpc.default.id]
   }
   filter {
-    name   = "tag:Name"
-    values = ["*Public*", "*public*"]
+    name   = "map-public-ip-on-launch"
+    values = ["true"]
   }
 }
 
@@ -57,4 +44,27 @@ resource "aws_cloudwatch_event_target" "ecs" {
       assign_public_ip = true
     }
   }
+}
+
+resource "aws_iam_role_policy" "eventbridge_ecs" {
+  name = "movie-alerts-eventbridge-ecs"
+  role = aws_iam_role.eventbridge_ecs.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ecs:RunTask"]
+        Resource = aws_ecs_task_definition.scraper.arn
+      },
+      {
+        Effect = "Allow"
+        Action = ["iam:PassRole"]
+        Resource = [
+          aws_iam_role.ecs_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ]
+      }
+    ]
+  })
 }
