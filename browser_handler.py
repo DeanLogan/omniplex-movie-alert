@@ -80,8 +80,18 @@ def _navigate_to_movie_page(driver, location, movie_url):
     driver.get(movie_url)
     select_dropdown_option(driver, DROPDOWN_OPTION, location)
 
+def _wait_for_elements(driver, by, value):
+    while True:
+        try:
+            elements = driver.find_elements(by, value)
+            if elements:
+                return elements
+        except NoSuchElementException:
+            pass
+        time.sleep(1)
+
 def _extract_available_dates(driver):
-    dates = driver.find_elements(by=By.CSS_SELECTOR, value=CSS_AVAILABLE_DATES)
+    dates = _wait_for_elements(driver, By.CSS_SELECTOR, CSS_AVAILABLE_DATES)
     available_dates = []
     for date in dates:
         timestamp = int(date.get_attribute('data-pick')) / 1000
