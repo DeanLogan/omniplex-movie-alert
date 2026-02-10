@@ -25,13 +25,26 @@ ERROR_ACCESS_FORBIDDEN = "Error: Access forbidden. Check your IAM permissions an
 
 load_dotenv()
 
-s3 = boto3.client(
-    AWS_SERVICE_S3,
-    endpoint_url=os.getenv(ENV_S3_ENDPOINT_URL),
-    aws_access_key_id=os.getenv(ENV_AWS_ACCESS_KEY_ID),
-    aws_secret_access_key=os.getenv(ENV_AWS_SECRET_ACCESS_KEY),
-    region_name=os.getenv(ENV_AWS_REGION)
-)
+def create_s3_client():
+    client_kwargs = {
+        'service_name': AWS_SERVICE_S3,
+        'region_name': os.getenv(ENV_AWS_REGION, 'eu-north-1')
+    }
+    
+    access_key = os.getenv(ENV_AWS_ACCESS_KEY_ID)
+    secret_key = os.getenv(ENV_AWS_SECRET_ACCESS_KEY)
+    endpoint = os.getenv(ENV_S3_ENDPOINT_URL)
+    
+    if access_key and secret_key:
+        client_kwargs['aws_access_key_id'] = access_key
+        client_kwargs['aws_secret_access_key'] = secret_key
+    
+    if endpoint:
+        client_kwargs['endpoint_url'] = endpoint
+    
+    return boto3.client(**client_kwargs)
+
+s3 = create_s3_client()
 
 def add_file(dir_local_file, filename):
     s3.upload_file(dir_local_file, BUCKET_NAME, filename)
@@ -43,7 +56,6 @@ def check_files_in_bucket():
         print(f" - {obj[S3_KEY_FIELD]}")
 
 def get_file_from_bucket(filename):
-    s3 = boto3.client(AWS_SERVICE_S3, region_name=os.getenv(ENV_AWS_REGION))
     temp_file_path = os.path.join(TMP_DIRECTORY, filename)
     
     try:
