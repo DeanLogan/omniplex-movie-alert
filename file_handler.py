@@ -1,5 +1,6 @@
 import os
 import json
+from email_handler import send_email
 from browser_handler import search_cinema
 from aws_storage import add_file, get_file_from_bucket
 
@@ -31,9 +32,8 @@ def get_diff_movies(driver, location):
 def extract_email_info():
     filepath = get_file_from_bucket(EMAIL_LIST_FILE)
     if filepath is None:
-        from email_handler import send_email
         send_email([os.environ.get(ENV_ERROR_EMAIL)], ERROR_READING_EMAIL_LIST, "Error reading email list")
-        os._exit(0)
+        os._exit(1)
     with open(filepath) as f:
         data = json.load(f)
     locations = [location for item in data for location in item['locations']]
