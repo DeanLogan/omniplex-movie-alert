@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from datetime import datetime
 from selenium import webdriver
@@ -57,7 +58,7 @@ def select_dropdown_option(driver, select_id, option_id):
         from email_handler import send_email
         send_email([os.environ.get(ENV_ERROR_EMAIL)], ERROR_INVALID_LOCATION, f"Error: {e}")
         driver.close()
-        os._exit(0)
+        sys.exit(1)
 
 def _navigate_to_cinema_page(driver, location):
     driver.get(WHATS_ON_LINK)
