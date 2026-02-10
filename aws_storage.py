@@ -33,14 +33,11 @@ def create_s3_client():
     
     access_key = os.getenv(ENV_AWS_ACCESS_KEY_ID)
     secret_key = os.getenv(ENV_AWS_SECRET_ACCESS_KEY)
-    endpoint = os.getenv(ENV_S3_ENDPOINT_URL)
     
     if access_key and secret_key:
+        print("attempting to use access key / secret key authentication")
         client_kwargs['aws_access_key_id'] = access_key
         client_kwargs['aws_secret_access_key'] = secret_key
-    
-    if endpoint:
-        client_kwargs['endpoint_url'] = endpoint
     
     return boto3.client(**client_kwargs)
 
