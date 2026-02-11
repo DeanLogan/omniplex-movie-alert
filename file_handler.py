@@ -11,6 +11,7 @@ ENV_ERROR_EMAIL = 'ERROR_EMAIL'
 ERROR_READING_EMAIL_LIST = 'ERROR READING EMAIL LIST'
 
 def write_arr_to_file(arr, filename):
+    os.makedirs(TMP_DIRECTORY, exist_ok=True)
     filepath = TMP_DIRECTORY + filename
     with open(filepath, 'w') as f:
         for s in arr:
