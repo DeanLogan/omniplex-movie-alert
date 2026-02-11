@@ -38,6 +38,8 @@ def create_s3_client():
         print("attempting to use access key / secret key authentication")
         client_kwargs['aws_access_key_id'] = access_key
         client_kwargs['aws_secret_access_key'] = secret_key
+    else:
+        print("using IAM role for authentication")
     
     return boto3.client(**client_kwargs)
 
@@ -53,6 +55,7 @@ def check_files_in_bucket():
         print(f" - {obj[S3_KEY_FIELD]}")
 
 def get_file_from_bucket(filename):
+    os.makedirs(TMP_DIRECTORY, exist_ok=True)
     temp_file_path = os.path.join(TMP_DIRECTORY, filename)
     
     try:
