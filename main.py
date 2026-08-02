@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from browser_handler import search_cinema
+from browser_handler import search_cinema, get_movie_info
 from file_handler import extract_email_info, write_arr_to_file, read_file_to_arr
 from email_handler import format_email_body, send_all_user_emails, location_cache
 
@@ -12,8 +12,9 @@ def get_diff_movies(location):
 
 def process_location(location):
     diff_movies, movies_on_website = get_diff_movies(location)
-    if diff_movies:
-        load_dotenv()
+    load_dotenv()
+    for movie in diff_movies:
+        movie_info = get_movie_info(movie)
         location_cache[location] = format_email_body(location, diff_movies)
         write_arr_to_file(movies_on_website, location + TXT_EXTENSION)
 
