@@ -2,7 +2,6 @@ import os
 import sys
 import json
 from email_handler import send_email
-from browser_handler import search_cinema
 from aws_storage import add_file, get_file_from_bucket
 
 TMP_DIRECTORY = 'tmp/'
@@ -25,11 +24,6 @@ def read_file_to_arr(filename):
     with open(filepath, 'r') as file:
         lines = file.readlines()
     return [line.strip() for line in lines]
-
-def get_diff_movies(driver, location):
-    movies_on_website = search_cinema(driver, location)
-    movies_on_file = read_file_to_arr(location + ".txt")
-    return [movie for movie in movies_on_website if movie not in movies_on_file], movies_on_website
 
 def extract_email_info():
     filepath = get_file_from_bucket(EMAIL_LIST_FILE)

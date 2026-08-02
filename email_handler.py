@@ -28,11 +28,11 @@ def send_email(recipients, subject, body):
         smtp.sendmail(sender, recipient, message.as_string())
     smtp.quit()
 
-def format_email_body(driver, location, movies):
+def format_email_body(location, movies):
     body = "<div>\n"
     body += "<h2>New movies at " + location + "</h2>\n"
     for movie in movies:
-        movie_info = get_movie_info(driver, location, movie)
+        movie_info = get_movie_info(location, movie)
         if movie_info is not None:
             body += "<div>\n"
             body += "<h3><a href=" + movie_info["link"] + ">" + movie_info["title"] + "</a></h3>\n"

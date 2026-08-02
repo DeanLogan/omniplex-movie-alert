@@ -2,11 +2,7 @@ import os
 import sys
 import time
 from datetime import datetime
-from selenium import webdriver
-from selenium.webdriver.common.by import By
 from utils import format_movie_title_to_link
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.chrome.options import Options as ChromeOptions
 
 BROWSER_TIMEOUT = 30
 WHATS_ON_LINK = 'https://www.omniplex.ie/whatson'
@@ -22,49 +18,10 @@ ERROR_INVALID_LOCATION = 'INVALID LOCATION'
 
 movie_cache = {}
 
-def _setup_chrome_driver():
-    options = ChromeOptions()
-    options.headless = True
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(BROWSER_TIMEOUT)
-    return driver
+def _navigate_to_cinema_page(location):
+    return None
 
-def initialize_browser():
-    print("starting")
-    driver = _setup_chrome_driver()
-    driver.get(WHATS_ON_LINK)
-    print("waiting for cookie consent")
-    wait_and_click(driver, By.XPATH, XPATH_COOKIE_CONSENT)
-    return driver
-
-def wait_and_click(driver, by, value):
-    while True:
-        try:
-            button = driver.find_element(by, value)
-            button.click()
-            break
-        except NoSuchElementException:
-            time.sleep(1)
-
-def select_dropdown_option(driver, select_id, option_id):
-    select_element = driver.find_element(By.ID, select_id)
-    try:
-        option_element = select_element.find_element(By.ID, option_id)
-        option_element.click()
-    except NoSuchElementException as e:
-        from email_handler import send_email
-        send_email([os.environ.get(ENV_ERROR_EMAIL)], ERROR_INVALID_LOCATION, f"Error: {e}")
-        driver.close()
-        sys.exit(1)
-
-def _navigate_to_cinema_page(driver, location):
-    driver.get(WHATS_ON_LINK)
-    select_dropdown_option(driver, DROPDOWN_OPTION, location)
-
-def _extract_movie_titles(driver):
+def _extract_movie_titles():
     elements = driver.find_elements(by=By.CLASS_NAME, value=CLASS_INLINE_BLOCK)
     h3_elements = [element for element in elements if element.tag_name == 'h3']
     movies_on_website = []
@@ -73,26 +30,12 @@ def _extract_movie_titles(driver):
             movies_on_website.append(element.text)
     return movies_on_website
 
-def search_cinema(driver, location):
-    _navigate_to_cinema_page(driver, location)
-    return _extract_movie_titles(driver)
+def search_cinema(location):
+    _navigate_to_cinema_page(location)
+    return _extract_movie_titles()
 
-def _navigate_to_movie_page(driver, location, movie_url):
-    driver.get(movie_url)
-    select_dropdown_option(driver, DROPDOWN_OPTION, location)
-
-def _wait_for_elements(driver, by, value):
-    while True:
-        try:
-            elements = driver.find_elements(by, value)
-            if elements:
-                return elements
-        except NoSuchElementException:
-            pass
-        time.sleep(1)
-
-def _extract_available_dates(driver):
-    dates = _wait_for_elements(driver, By.CSS_SELECTOR, CSS_AVAILABLE_DATES)
+def _extract_available_dates():
+    dates = _wait_for_elements(By.CSS_SELECTOR, CSS_AVAILABLE_DATES)
     available_dates = []
     for date in dates:
         timestamp = int(date.get_attribute('data-pick')) / 1000
@@ -100,14 +43,14 @@ def _extract_available_dates(driver):
         available_dates.append(date_obj.strftime(DATE_FORMAT))
     return available_dates
 
-def _extract_movie_image_url(driver):
+def _extract_movie_image_url():
     try:
         img_element = driver.find_element(By.CLASS_NAME, CLASS_IMAGE_ROUNDED)
         return img_element.get_attribute('src')
     except Exception:
         return None
 
-def get_movie_info(driver, location, movie_title):
+def get_movie_info(location, movie_title):
     if movie_title in movie_cache:
         return movie_cache[movie_title]
     
@@ -120,10 +63,10 @@ def get_movie_info(driver, location, movie_title):
     movie_title_link = format_movie_title_to_link(movie_title)
     movie_info["link"] = WHATS_ON_LINK + SHOWTIMES_PAGE + movie_title_link
     
-    _navigate_to_movie_page(driver, location, movie_info["link"])
+    _navigate_to_movie_page(location, movie_info["link"])
     
-    movie_info["dates"] = _extract_available_dates(driver)
-    movie_info["img"] = _extract_movie_image_url(driver)
+    movie_info["dates"] = _extract_available_dates()
+    movie_info["img"] = _extract_movie_image_url()
     
     if movie_info["img"] is None:
         return None
