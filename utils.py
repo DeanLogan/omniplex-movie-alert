@@ -26,6 +26,5 @@ def format_movie_title_to_link(movie_title):
     return movie_title
 
 def get_request(url: str) -> str:
-    print(url)
     response = requests.get(url=url)
     return response.text
