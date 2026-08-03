@@ -1,6 +1,7 @@
 import re
 from typing import Dict
 from typing import List
+from urllib.parse import quote
 from datetime import datetime
 from utils import format_movie_title_to_link, get_request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -13,6 +14,7 @@ FILTER_DATE_FORMAT = '%Y-%m-%d'
 SHOWTIMES_PAGE = '/cinema/showtimes/'
 OMNIPLEX_HOME = 'https://www.omniplexcinemas.co.uk'
 FILTER_DATE_QUERY_PARAM = "?action=processFilters&filterDate="
+POSTER_CLASS = "col-start-1 row-start-1 w-full h-auto object-cover"
 
 movie_cache = {}
 _todays_page_cache: Dict[str, str] = {}
@@ -90,12 +92,18 @@ def _get_day_info(page: str, date: str):
                 "title": title,
                 "link": title_and_url[0]["link"],
                 "img": _extract_img(movie_div),
-                "times": {date: showtimes_array}
+                "dates": {date: showtimes_array}
             }
     return movies
 
 def _extract_img(movie_div: str):
-    return re.search(r'<img\s+src="([^"]+)"', movie_div).group(1)
+    img_tags = re.findall(r'<img[^>]*>', movie_div)
+    for tag in img_tags:
+        if f'class="{POSTER_CLASS}"' in tag:
+            src_match = re.search(r'src="([^"]+)"', tag)
+            if src_match:
+                return OMNIPLEX_HOME + quote(src_match.group(1), safe='/?=&')
+    return None
 
 def _extract_movie_and_title(movie_div: str):
     movie_matches = re.findall(r'<a href="([^"]+)">\s*([^<]+?)\s*</a>', movie_div)
