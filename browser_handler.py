@@ -1,8 +1,9 @@
-from typing import Dict
 import re
+from typing import Dict
 from typing import List
 from datetime import datetime
 from utils import format_movie_title_to_link, get_request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 OMNIPLEX_HOME = 'https://www.omniplexcinemas.co.uk'
 DROPDOWN_OPTION = 'homeSelectCinema'
@@ -13,15 +14,17 @@ FILTER_DATE_FORMAT = '%Y-%m-%d'
 ALLOWED_DATES_REGEX = r'const allowedDatesTimestamps = \.(.*?)'
 COMMA = ','
 OPEN_SQAURE_BRACKET = '['
+MAX_WORKERS = 15
 
 ENV_ERROR_EMAIL = 'ERROR_EMAIL'
 ERROR_INVALID_LOCATION = 'INVALID LOCATION'
 
 movie_cache = {}
-omniplex_showtime_page = None
+omniplex_showtime_page = {}
 
-def _form_cinema_url(location: str, date_obj: datetime) -> str:
-    return OMNIPLEX_HOME + SHOWTIMES_PAGE + location + FILTER_DATE_QUERY_PARAM + date_obj.strftime(FILTER_DATE_FORMAT)
+def _form_cinema_url(location: str, date_obj: datetime = None, date_str: str = "") -> str:
+    date = date_obj.strftime(FILTER_DATE_FORMAT) if date_obj is not None else date_str
+    return OMNIPLEX_HOME + SHOWTIMES_PAGE + location + FILTER_DATE_QUERY_PARAM + date
 
 def _extract_available_dates(omniplex_page: str) -> List[datetime]:
     allowed_dates_str = re.search(r'const allowedDatesTimestamps = (.*?)]', omniplex_page).group(1)
@@ -34,9 +37,12 @@ def _extract_movie_list_from_div(omniplex_page: str) -> List[str]:
     return [{"link": OMNIPLEX_HOME+href, "title": title} for href, title in movie_matches]
 
 def _get_todays_page(location: str):
-    todays_date = datetime.now()
-    todays_link = _form_cinema_url(location, todays_date)
-    return get_request(todays_link)
+    if omniplex_showtime_page[location] is None:
+        todays_date = datetime.now()
+        todays_link = _form_cinema_url(location, date_obj = todays_date)
+        return get_request(todays_link)
+    else:
+        return omniplex_showtime_page[location]
 
 def search_cinema(location: str) -> List[str]:
     pages = []
@@ -45,22 +51,40 @@ def search_cinema(location: str) -> List[str]:
     movies = _extract_movie_list_from_div(omniplex_showtime_page)
     return [movie["title"] for movie in movies]
 
-def movies_for_all_dates(location):
+def _fetch_and_parse_date(location: str, date_obj: datetime) -> Dict:
+    date_url = _form_cinema_url(location, date_obj)
+    page = get_request(date_url)
+    return _get_day_info(page, date_obj.strftime(FILTER_DATE_FORMAT))
+
+def _merge_movies_into(target: Dict, source: Dict):
+    for title, movie in source.items():
+        if title in target:
+            target[title]["times"].update(movie["times"])
+        else:
+            target[title] = movie
+
+def movies_for_all_dates(location: str) -> Dict:
     omniplex_showtime_page = _get_todays_page(location)
     dates = _extract_available_dates(omniplex_showtime_page)
-    movies = _get_day_info(omniplex_showtime_page, datetime.now().strftime(FILTER_DATE_FORMAT), {})
 
-    for i in range(1, len(dates)):
-        date_url = _form_cinema_url(location, dates[i])
-        page = get_request(date_url)
-        movies = _get_day_info(page, dates[i].strftime(FILTER_DATE_FORMAT), movies)
+    movies = _get_day_info(omniplex_showtime_page, datetime.now().strftime(FILTER_DATE_FORMAT))
+
+    with ThreadPoolExecutor(max_workers=len(dates) - 1) as executor:
+        pending_dates = {
+            executor.submit(_fetch_and_parse_date, location, dates[i]): dates[i]
+            for i in range(1, len(dates))
+        }
+        for completed_date_task in as_completed(pending_dates):
+            movies_for_date = completed_date_task.result()
+            _merge_movies_into(movies, movies_for_date)
 
     return movies
 
-def _get_day_info(page: str, date: str, movies: Dict):
+def _get_day_info(page: str, date: str):
     movie_divs = page.split('<div class="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-10  bg-ompYellow-light/5 shadow-lg backdrop-blur-sm p-4 rounded-lg gap-4 xl:gap-8">')
     movie_divs = movie_divs[1:]
 
+    movies = {}
     for movie_div in movie_divs:
         title_and_url = _extract_movie_and_title(movie_div)
         title = title_and_url[0]["title"]
@@ -126,17 +150,7 @@ def get_movie_info(location, movie_title):
     movie_cache[movie_title] = movie_info
     return movie_info
 
-def _combine_day_info(day1, day2):
-    combined = {}
-    combined["title"] = day1["title"]
-    combined["link"] = day1["link"]
-    combined["img"] = day1["img"]
-    combined["times"] = day1["times"] + day2["times"]
-    return combined
-
 if __name__ == "__main__":
     location = "antrim"
     movies = movies_for_all_dates(location)
-    
-    for key, value in movies.items():
-        print(key)
+    print(movies)
