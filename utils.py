@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 import requests
 
 ENV_ERROR_EMAIL = 'ERROR_EMAIL'

@@ -35,3 +35,9 @@ def extract_email_info():
     locations = [location for item in data for location in item['locations']]
     locations = list(set(locations))
     return data, locations
+
+def get_file_from_tmp_dir(filename: str) -> str | None:
+    filepath = os.path.join(TMP_DIRECTORY, filename)
+    if not os.path.exists(filepath):
+        return None
+    return filepath

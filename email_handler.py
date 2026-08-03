@@ -2,7 +2,6 @@ import os
 import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
-from browser_handler import get_movie_info
 
 SMTP_SERVER = 'smtp.gmail.com'
 SMTP_PORT = 465
@@ -28,12 +27,12 @@ def send_email(recipients, subject, body):
         smtp.sendmail(sender, recipient, message.as_string())
     smtp.quit()
 
-def format_email_body(location, movies):
+def format_email_body(location, movies, movies_info):
     body = "<div>\n"
     body += "<h2>New movies at " + location + "</h2>\n"
     for movie in movies:
-        movie_info = get_movie_info(location, movie)
-        if movie_info is not None:
+        if movie in movies_info:
+            movie_info = movies_info[movie]
             body += "<div>\n"
             body += "<h3><a href=" + movie_info["link"] + ">" + movie_info["title"] + "</a></h3>\n"
             body += "<table style='width: 100%; margin-bottom: 20px;'>\n"
@@ -43,7 +42,7 @@ def format_email_body(location, movies):
             body += "</td>\n"
             body += "<td style='vertical-align: top; padding-left: 0;'>\n"
             body += '<ul style="margin: 0; padding: 0; list-style-type: none;">\n'
-            for date in movie_info["dates"]:
+            for date in movie_info["dates"].keys():
                 body += "<li>" + date + "</li>\n"
             body += "</ul>\n"
             body += "</td>\n"
