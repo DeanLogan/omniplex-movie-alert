@@ -1,113 +1,133 @@
-import os
-import sys
-import time
+import re
+from typing import Dict
+from typing import List
+from urllib.parse import quote
 from datetime import datetime
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from utils import format_movie_title_to_link
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.chrome.options import Options as ChromeOptions
+from utils import format_movie_title_to_link, get_request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-BROWSER_TIMEOUT = 30
-WHATS_ON_LINK = 'https://www.omniplex.ie/whatson'
-DROPDOWN_OPTION = 'homeSelectCinema'
-SHOWTIMES_PAGE = '/movie/showtimes/'
-CLASS_INLINE_BLOCK = 'OMP_inlineBlock'
-CLASS_IMAGE_ROUNDED = 'OMP_imageRounded'
-CSS_AVAILABLE_DATES = '.picker__day.picker__day--infocus:not([aria-disabled="true"])'
-XPATH_COOKIE_CONSENT = '//*[@id="acceptAll"]'
+COMMA = ','
+MAX_WORKERS = 15
 DATE_FORMAT = '%d %b %Y'
-ENV_ERROR_EMAIL = 'ERROR_EMAIL'
-ERROR_INVALID_LOCATION = 'INVALID LOCATION'
+OPEN_SQAURE_BRACKET = '['
+FILTER_DATE_FORMAT = '%Y-%m-%d'
+SHOWTIMES_PAGE = '/cinema/showtimes/'
+OMNIPLEX_HOME = 'https://www.omniplexcinemas.co.uk'
+FILTER_DATE_QUERY_PARAM = "?action=processFilters&filterDate="
+POSTER_CLASS = "col-start-1 row-start-1 w-full h-auto object-cover"
 
 movie_cache = {}
+_todays_page_cache: Dict[str, str] = {}
 
-def _setup_chrome_driver():
-    options = ChromeOptions()
-    options.headless = True
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(BROWSER_TIMEOUT)
-    return driver
+def _form_cinema_url(location: str, date_obj: datetime = None, date_str: str = "") -> str:
+    date = date_obj.strftime(FILTER_DATE_FORMAT) if date_obj is not None else date_str
+    return OMNIPLEX_HOME + SHOWTIMES_PAGE + location + FILTER_DATE_QUERY_PARAM + date
 
-def initialize_browser():
-    print("starting")
-    driver = _setup_chrome_driver()
-    driver.get(WHATS_ON_LINK)
-    print("waiting for cookie consent")
-    wait_and_click(driver, By.XPATH, XPATH_COOKIE_CONSENT)
-    return driver
+def _extract_available_dates(omniplex_page: str) -> List[datetime]:
+    allowed_dates_str = re.search(r'const allowedDatesTimestamps = (.*?)]', omniplex_page).group(1)
+    allowed_dates_str = allowed_dates_str.strip(OPEN_SQAURE_BRACKET)
+    allowed_dates = allowed_dates_str.split(COMMA)
+    return [datetime.fromtimestamp(int(date) / 1000) for date in allowed_dates]
 
-def wait_and_click(driver, by, value):
-    while True:
-        try:
-            button = driver.find_element(by, value)
-            button.click()
-            break
-        except NoSuchElementException:
-            time.sleep(1)
+def _extract_movie_list_from_div(omniplex_page: str) -> List[str]:
+    movie_matches = re.findall(r'<a class="p-3 block" href="([^"]+)">([^<]+)</a>',omniplex_page)
+    return [{"link": OMNIPLEX_HOME+href, "title": title} for href, title in movie_matches]
 
-def select_dropdown_option(driver, select_id, option_id):
-    select_element = driver.find_element(By.ID, select_id)
-    try:
-        option_element = select_element.find_element(By.ID, option_id)
-        option_element.click()
-    except NoSuchElementException as e:
-        from email_handler import send_email
-        send_email([os.environ.get(ENV_ERROR_EMAIL)], ERROR_INVALID_LOCATION, f"Error: {e}")
-        driver.close()
-        sys.exit(1)
+def _get_todays_page(location: str) -> str:
+    if location not in _todays_page_cache:
+        todays_link = _form_cinema_url(location, date_obj=datetime.now())
+        _todays_page_cache[location] = get_request(todays_link)
+    return _todays_page_cache[location]
 
-def _navigate_to_cinema_page(driver, location):
-    driver.get(WHATS_ON_LINK)
-    select_dropdown_option(driver, DROPDOWN_OPTION, location)
+def search_cinema(location: str) -> List[str]:
+    pages = []
+    omniplex_showtime_page = _get_todays_page(location)
+    pages.append(omniplex_showtime_page)
+    movies = _extract_movie_list_from_div(omniplex_showtime_page)
+    return [movie["title"] for movie in movies]
 
-def _extract_movie_titles(driver):
-    elements = driver.find_elements(by=By.CLASS_NAME, value=CLASS_INLINE_BLOCK)
-    h3_elements = [element for element in elements if element.tag_name == 'h3']
-    movies_on_website = []
-    for element in h3_elements:
-        if element.text != '':
-            movies_on_website.append(element.text)
-    return movies_on_website
+def _fetch_and_parse_date(location: str, date_obj: datetime) -> Dict:
+    date_url = _form_cinema_url(location, date_obj)
+    page = get_request(date_url)
+    return _get_day_info(page, date_obj.strftime(FILTER_DATE_FORMAT))
 
-def search_cinema(driver, location):
-    _navigate_to_cinema_page(driver, location)
-    return _extract_movie_titles(driver)
+def _merge_movies_into(target: Dict, source: Dict):
+    for title, movie in source.items():
+        if title in target:
+            target[title]["dates"].update(movie["dates"])
+        else:
+            target[title] = movie
 
-def _navigate_to_movie_page(driver, location, movie_url):
-    driver.get(movie_url)
-    select_dropdown_option(driver, DROPDOWN_OPTION, location)
+def movies_for_all_dates(location: str) -> Dict:
+    omniplex_showtime_page = _get_todays_page(location)
+    dates = _extract_available_dates(omniplex_showtime_page)
 
-def _wait_for_elements(driver, by, value):
-    while True:
-        try:
-            elements = driver.find_elements(by, value)
-            if elements:
-                return elements
-        except NoSuchElementException:
-            pass
-        time.sleep(1)
+    movies = _get_day_info(omniplex_showtime_page, datetime.now().strftime(FILTER_DATE_FORMAT))
 
-def _extract_available_dates(driver):
-    dates = _wait_for_elements(driver, By.CSS_SELECTOR, CSS_AVAILABLE_DATES)
-    available_dates = []
-    for date in dates:
-        timestamp = int(date.get_attribute('data-pick')) / 1000
-        date_obj = datetime.fromtimestamp(timestamp)
-        available_dates.append(date_obj.strftime(DATE_FORMAT))
-    return available_dates
+    with ThreadPoolExecutor(max_workers=len(dates) - 1) as executor:
+        pending_dates = {
+            executor.submit(_fetch_and_parse_date, location, dates[i]): dates[i]
+            for i in range(1, len(dates))
+        }
+        for completed_date_task in as_completed(pending_dates):
+            movies_for_date = completed_date_task.result()
+            _merge_movies_into(movies, movies_for_date)
 
-def _extract_movie_image_url(driver):
-    try:
-        img_element = driver.find_element(By.CLASS_NAME, CLASS_IMAGE_ROUNDED)
-        return img_element.get_attribute('src')
-    except Exception:
-        return None
+    return movies
 
-def get_movie_info(driver, location, movie_title):
+def _get_day_info(page: str, date: str):
+    movie_divs = page.split('<div class="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-10  bg-ompYellow-light/5 shadow-lg backdrop-blur-sm p-4 rounded-lg gap-4 xl:gap-8">')
+    movie_divs = movie_divs[1:]
+
+    movies = {}
+    for movie_div in movie_divs:
+        title_and_url = _extract_movie_and_title(movie_div)
+        title = title_and_url[0]["title"]
+
+        showtimes_array = _extract_times_from_per_movie_div(movie_div, title)
+        if title in movies:
+            movies[title]["dates"][date] = showtimes_array
+        else:
+            movies[title] = {
+                "title": title,
+                "link": title_and_url[0]["link"],
+                "img": _extract_img(movie_div),
+                "dates": {date: showtimes_array}
+            }
+    return movies
+
+def _extract_img(movie_div: str):
+    img_tags = re.findall(r'<img[^>]*>', movie_div)
+    for tag in img_tags:
+        if f'class="{POSTER_CLASS}"' in tag:
+            src_match = re.search(r'src="([^"]+)"', tag)
+            if src_match:
+                return OMNIPLEX_HOME + quote(src_match.group(1), safe='/?=&')
+    return None
+
+def _extract_movie_and_title(movie_div: str):
+    movie_matches = re.findall(r'<a href="([^"]+)">\s*([^<]+?)\s*</a>', movie_div)
+    return [{"link": OMNIPLEX_HOME + href, "title": title} for href, title in movie_matches]
+
+def _extract_times_from_per_movie_div(movie_div: str, movie_title: str) -> Dict:
+    showtimes_div = movie_div.split(f'<a aria-label="{movie_title}')
+    showtimes_div = showtimes_div[1:]
+    
+    showtimes = []
+    for showtime_div in showtimes_div:
+        showtimes.append({
+            "start_time": re.search(r'<h4 class="bigText mr-1 leading-none"[^>]*>\s*(\d{2}:\d{2})\s*</h4>', showtime_div).group(1),
+            "end_time": re.search(r'<p class="smallText leading-none"[^>]*>\s*-\s*(\d{2}:\d{2})\s*</p>', showtime_div).group(1),
+            "screen": re.search(r'<p class="smallText">(.*?)</p>', showtime_div).group(1),
+            "link": re.search(r'href="(.*?)" class="">', showtime_div).group(1),
+        })
+    
+    return showtimes
+
+def _extract_movie_image_url():
+    return None
+
+def get_movie_info(location, movie_title):
     if movie_title in movie_cache:
         return movie_cache[movie_title]
     
@@ -118,12 +138,12 @@ def get_movie_info(driver, location, movie_title):
         "link": "",
     }
     movie_title_link = format_movie_title_to_link(movie_title)
-    movie_info["link"] = WHATS_ON_LINK + SHOWTIMES_PAGE + movie_title_link
+    movie_info["link"] = OMNIPLEX_HOME + SHOWTIMES_PAGE + movie_title_link
     
-    _navigate_to_movie_page(driver, location, movie_info["link"])
+    # _navigate_to_movie_page(location, movie_info["link"])
     
-    movie_info["dates"] = _extract_available_dates(driver)
-    movie_info["img"] = _extract_movie_image_url(driver)
+    movie_info["dates"] = _extract_available_dates()
+    movie_info["img"] = _extract_movie_image_url()
     
     if movie_info["img"] is None:
         return None
