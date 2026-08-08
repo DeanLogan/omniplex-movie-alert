@@ -1,70 +1,50 @@
-resource "aws_iam_role" "eventbridge_ecs" {
-  name = "movie-alerts-eventbridge-ecs-role"
+resource "aws_iam_role" "scheduler_lambda" {
+  name = "movie-alerts-scheduler-lambda-role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
-      Principal = { Service = "events.amazonaws.com" }
+      Principal = { Service = "scheduler.amazonaws.com" }
     }]
   })
 }
 
-resource "aws_cloudwatch_event_rule" "scraper_schedule" {
-  name                = "movie-alerts-schedule"
-  schedule_expression = "cron(0 10 * * ? *)" # 10AM GMT
-}
+resource "aws_iam_role_policy" "scheduler_lambda" {
+  name = "movie-alerts-scheduler-lambda"
+  role = aws_iam_role.scheduler_lambda.id
 
-data "aws_vpc" "default" { default = true }
-data "aws_subnets" "public" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-  filter {
-    name   = "map-public-ip-on-launch"
-    values = ["true"]
-  }
-}
-
-resource "aws_cloudwatch_event_target" "ecs" {
-  rule      = aws_cloudwatch_event_rule.scraper_schedule.name
-  target_id = "movie-alerts"
-  arn       = aws_ecs_cluster.main.arn
-  role_arn  = aws_iam_role.eventbridge_ecs.arn
-
-  ecs_target {
-    task_definition_arn = aws_ecs_task_definition.scraper.arn
-    task_count          = 1
-    launch_type         = "FARGATE"
-    platform_version    = "1.4.0"
-    network_configuration {
-      subnets          = data.aws_subnets.public.ids
-      security_groups  = [aws_security_group.ecs_task.id]
-      assign_public_ip = true
-    }
-  }
-}
-
-resource "aws_iam_role_policy" "eventbridge_ecs" {
-  name = "movie-alerts-eventbridge-ecs"
-  role = aws_iam_role.eventbridge_ecs.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["ecs:RunTask"]
-        Resource = aws_ecs_task_definition.scraper.arn
-      },
-      {
-        Effect = "Allow"
-        Action = ["iam:PassRole"]
-        Resource = [
-          aws_iam_role.ecs_execution_role.arn,
-          aws_iam_role.ecs_task_role.arn
-        ]
-      }
-    ]
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["lambda:InvokeFunction"]
+      Resource = aws_lambda_function.scraper.arn
+    }]
   })
+}
+
+resource "aws_scheduler_schedule" "scraper_schedule" {
+  name                         = "movie-alerts-schedule"
+  description                  = "Run movie alerts every day at 10am UK time"
+  schedule_expression          = "cron(0 10 * * ? *)"
+  schedule_expression_timezone = "Europe/London"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.scraper.arn
+    role_arn = aws_iam_role.scheduler_lambda.arn
+  }
+}
+
+resource "aws_lambda_permission" "allow_scheduler" {
+  statement_id  = "AllowExecutionFromEventBridgeScheduler"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.scraper.function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = aws_scheduler_schedule.scraper_schedule.arn
 }

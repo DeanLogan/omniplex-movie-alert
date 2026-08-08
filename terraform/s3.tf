@@ -6,3 +6,4 @@ resource "aws_s3_bucket" "movie_lists" {
     Environment = "Dev"
   }
 }
+

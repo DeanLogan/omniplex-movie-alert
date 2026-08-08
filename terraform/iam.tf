@@ -1,5 +1,5 @@
-resource "aws_iam_role" "ecs_execution_role" {
-  name = "movie-alerts-ecs-execution-role"
+resource "aws_iam_role" "lambda_execution_role" {
+  name = "movie-alerts-lambda-execution-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -7,15 +7,15 @@ resource "aws_iam_role" "ecs_execution_role" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "ecs-tasks.amazonaws.com"
+        Service = "lambda.amazonaws.com"
       }
     }]
   })
 }
 
-resource "aws_iam_role_policy" "ecs_execution_policy" {
-  name = "movie-alerts-ecs-execution"
-  role = aws_iam_role.ecs_execution_role.id
+resource "aws_iam_role_policy" "lambda_execution_policy" {
+  name = "movie-alerts-lambda-execution"
+  role = aws_iam_role.lambda_execution_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -23,26 +23,11 @@ resource "aws_iam_role_policy" "ecs_execution_policy" {
       {
         Effect = "Allow"
         Action = [
-          "ecr:GetAuthorizationToken"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage"
-        ]
-        Resource = aws_ecr_repository.movie_alerts.arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
+          "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "${aws_cloudwatch_log_group.scraper.arn}:*"
+        Resource = "arn:aws:logs:*:*:*"
       },
       {
         Effect = "Allow"
@@ -55,43 +40,19 @@ resource "aws_iam_role_policy" "ecs_execution_policy" {
           aws_ssm_parameter.error_email.arn,
           aws_ssm_parameter.sender_email.arn
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.movie_lists.arn,
+          "${aws_s3_bucket.movie_lists.arn}/*"
+        ]
       }
     ]
-  })
-}
-
-resource "aws_iam_role" "ecs_task_role" {
-  name = "movie-alerts-ecs-task-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "ecs_task_s3_policy" {
-  name = "movie-alerts-s3-access"
-  role = aws_iam_role.ecs_task_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:ListBucket"
-      ]
-      Resource = [
-        aws_s3_bucket.movie_lists.arn,
-        "${aws_s3_bucket.movie_lists.arn}/*"
-      ]
-    }]
   })
 }
