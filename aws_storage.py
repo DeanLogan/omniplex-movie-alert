@@ -7,7 +7,7 @@ AWS_SERVICE_S3 = 's3'
 BUCKET_NAME = 'movie-lists'
 
 HTTP_FORBIDDEN = '403'
-TMP_DIRECTORY = 'tmp'
+TMP_DIRECTORY = '/tmp'
 
 ENV_S3_ENDPOINT_URL = 'S3_ENDPOINT_URL'
 ENV_AWS_ACCESS_KEY_ID = 'AWS_ACCESS_KEY_ID'
@@ -46,10 +46,10 @@ def create_s3_client():
 s3 = create_s3_client()
 
 def add_file(dir_local_file, filename):
-    s3.upload_file(dir_local_file, BUCKET_NAME, filename)
+    s3.upload_file(dir_local_file, os.getenv('S3_BUCKET_NAME', BUCKET_NAME), filename)
 
 def check_files_in_bucket():
-    response = s3.list_objects(Bucket=BUCKET_NAME)
+    response = s3.list_objects(Bucket=os.getenv('S3_BUCKET_NAME', BUCKET_NAME))
     print('Files in bucket:')
     for obj in response.get(S3_CONTENTS_KEY, []):
         print(f" - {obj[S3_KEY_FIELD]}")
@@ -59,7 +59,7 @@ def get_file_from_bucket(filename):
     temp_file_path = os.path.join(TMP_DIRECTORY, filename)
     
     try:
-        s3.download_file(BUCKET_NAME, filename, temp_file_path)
+        s3.download_file(os.getenv('S3_BUCKET_NAME', BUCKET_NAME), filename, temp_file_path)
     except NoCredentialsError:
         print(ERROR_NO_CREDENTIALS)
         return None
@@ -79,12 +79,12 @@ def get_file_from_bucket(filename):
     return temp_file_path
 
 def delete_file_from_bucket(filename):
-    s3.delete_object(Bucket=BUCKET_NAME, Key=filename)
+    s3.delete_object(Bucket=os.getenv('S3_BUCKET_NAME', BUCKET_NAME), Key=filename)
 
 def delete_all_files_in_bucket():
-    response = s3.list_objects(Bucket=BUCKET_NAME)
+    response = s3.list_objects(Bucket=os.getenv('S3_BUCKET_NAME', BUCKET_NAME))
     for obj in response.get(S3_CONTENTS_KEY, []):
-        s3.delete_object(Bucket=BUCKET_NAME, Key=obj[S3_KEY_FIELD])
+        s3.delete_object(Bucket=os.getenv('S3_BUCKET_NAME', BUCKET_NAME), Key=obj[S3_KEY_FIELD])
 
 def create_bucket():
     s3.create_bucket(Bucket=BUCKET_NAME)
