@@ -1,4 +1,4 @@
-name: Deploy to ECR
+name: Deploy Lambda zip
 
 on:
   push:
@@ -8,12 +8,17 @@ on:
       - 'v*.*.*'
 
 jobs:
-  build-and-push:
+  build-upload-and-update:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -22,15 +27,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
       
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Build, tag, and push image to Amazon ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: movie-alerts
-          IMAGE_TAG: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
+      - name: Build Lambda zip
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          rm -rf package lambda.zip
+          mkdir package
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -t package
+          cp main.py aws_storage.py browser_handler.py email_handler.py file_handler.py utils.py package/
+          cd package
+          zip -r ../lambda.zip .
+
+      - name: Update Lambda code
+        run: |
+          aws lambda update-function-code \
+            --function-name movie-alerts \
+            --zip-file fileb://lambda.zip
+
+      - name: Wait for Lambda update
+        run: |
+          aws lambda wait function-updated --function-name movie-alerts
