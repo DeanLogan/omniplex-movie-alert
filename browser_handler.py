@@ -64,14 +64,16 @@ def movies_for_all_dates(location: str) -> Dict:
 
     movies = _get_day_info(omniplex_showtime_page, datetime.now().strftime(FILTER_DATE_FORMAT))
 
-    with ThreadPoolExecutor(max_workers=len(dates) - 1) as executor:
-        pending_dates = {
-            executor.submit(_fetch_and_parse_date, location, dates[i]): dates[i]
-            for i in range(1, len(dates))
-        }
-        for completed_date_task in as_completed(pending_dates):
-            movies_for_date = completed_date_task.result()
-            _merge_movies_into(movies, movies_for_date)
+    remaining_dates = dates[1:]
+    if remaining_dates:
+        with ThreadPoolExecutor(max_workers=len(remaining_dates)) as executor:
+            pending_dates = {
+                executor.submit(_fetch_and_parse_date, location, date): date
+                for date in remaining_dates
+            }
+            for completed_date_task in as_completed(pending_dates):
+                movies_for_date = completed_date_task.result()
+                _merge_movies_into(movies, movies_for_date)
 
     return movies
 

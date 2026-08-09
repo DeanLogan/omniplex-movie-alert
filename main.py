@@ -1,4 +1,4 @@
-from dotenv import load_dotenv
+from aws_storage import load_env
 from browser_handler import search_cinema, movies_for_all_dates
 from file_handler import extract_email_info, write_arr_to_file, read_file_to_arr
 from email_handler import format_email_body, send_all_user_emails, location_cache
@@ -18,17 +18,16 @@ def process_location(location):
     write_arr_to_file(movies_on_website, location + TXT_EXTENSION)
     movies_info = movies_for_all_dates(location)
     
-    for movie in diff_movies:
-        location_cache[location] = format_email_body(location, diff_movies, movies_info)
+    location_cache[location] = format_email_body(location, diff_movies, movies_info)
 
 def process_all_locations(locations):
     print("checking locations: ", locations)
-    load_dotenv()
     for location in locations:
         process_location(location)
 
 def main():
     try:
+        load_env()
         email_list, locations = extract_email_info()
         process_all_locations(locations)
         send_all_user_emails(email_list)

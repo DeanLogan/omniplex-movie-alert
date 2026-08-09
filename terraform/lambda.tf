@@ -14,7 +14,7 @@ resource "aws_lambda_function" "scraper" {
       S3_BUCKET_NAME           = aws_s3_bucket.movie_lists.bucket
       APP_PASSWORD_GMAIL_PARAM = aws_ssm_parameter.gmail_app_password.name
       ERROR_EMAIL_PARAM        = aws_ssm_parameter.error_email.name
-      EMAIL_GMAIL_PARAM        = aws_ssm_parameter.sender_email.name
+      SENDER_EMAIL_PARAM       = aws_ssm_parameter.sender_email.name
     }
   }
 
