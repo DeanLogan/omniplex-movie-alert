@@ -1,6 +1,7 @@
 import re
 from typing import Dict
 from typing import List
+from typing import Optional
 from urllib.parse import quote
 from datetime import datetime
 from utils import format_movie_title_to_link, get_request
@@ -24,7 +25,7 @@ def _form_cinema_url(location: str, date_obj: datetime = None, date_str: str = "
     return OMNIPLEX_HOME + SHOWTIMES_PAGE + location + FILTER_DATE_QUERY_PARAM + date
 
 def _extract_available_dates(omniplex_page: str) -> List[datetime]:
-    allowed_dates_str = re.search(r'const allowedDatesTimestamps = (.*?)]', omniplex_page).group(1)
+    allowed_dates_str = _search_for_tag(r'const allowedDatesTimestamps = (.*?)]', omniplex_page)
     allowed_dates_str = allowed_dates_str.strip(OPEN_SQAURE_BRACKET)
     allowed_dates = allowed_dates_str.split(COMMA)
     return [datetime.fromtimestamp(int(date) / 1000) for date in allowed_dates]
@@ -100,12 +101,9 @@ def _get_day_info(page: str, date: str):
 
 def _extract_img(movie_div: str):
     img_tags = re.findall(r'<img[^>]*>', movie_div)
-    for tag in img_tags:
-        if f'class="{POSTER_CLASS}"' in tag:
-            src_match = re.search(r'src="([^"]+)"', tag)
-            if src_match:
-                return OMNIPLEX_HOME + quote(src_match.group(1), safe='/?=&')
-    return None
+    poster_tag = next((tag for tag in img_tags if f'class="{POSTER_CLASS}"' in tag), "")
+    src = _search_for_tag(r'src="([^"]+)"', poster_tag)
+    return OMNIPLEX_HOME + quote(src, safe='/?=&') if src else None
 
 def _extract_movie_and_title(movie_div: str):
     movie_matches = re.findall(r'<a href="([^"]+)">\s*([^<]+?)\s*</a>', movie_div)
@@ -118,13 +116,19 @@ def _extract_times_from_per_movie_div(movie_div: str, movie_title: str) -> Dict:
     showtimes = []
     for showtime_div in showtimes_div:
         showtimes.append({
-            "start_time": re.search(r'<h4 class="bigText mr-1 leading-none"[^>]*>\s*(\d{2}:\d{2})\s*</h4>', showtime_div).group(1),
-            "end_time": re.search(r'<p class="smallText leading-none"[^>]*>\s*-\s*(\d{2}:\d{2})\s*</p>', showtime_div).group(1),
-            "screen": re.search(r'<p class="smallText">(.*?)</p>', showtime_div).group(1),
-            "link": re.search(r'href="(.*?)" class="">', showtime_div).group(1),
+            "start_time": _search_for_tag(r'<h4 class="bigText mr-1 leading-none"[^>]*>\s*(\d{2}:\d{2})\s*</h4>', showtime_div),
+            "end_time": _search_for_tag(r'<p class="smallText leading-none"[^>]*>\s*-\s*(\d{2}:\d{2})\s*</p>', showtime_div),
+            "screen": _search_for_tag(r'<p class="smallText">(.*?)</p>', showtime_div),
+            "link": _search_for_tag(r'href="(.*?)" class="">', showtime_div),
         })
     
     return showtimes
+
+def _search_for_tag(regex: str, search_in: Optional[str]) -> str:
+    if not search_in:
+        return ""
+    match = re.search(regex, search_in,  re.DOTALL)
+    return match.group(1).strip() if match else ""
 
 def _extract_movie_image_url():
     return None
@@ -141,8 +145,6 @@ def get_movie_info(location, movie_title):
     }
     movie_title_link = format_movie_title_to_link(movie_title)
     movie_info["link"] = OMNIPLEX_HOME + SHOWTIMES_PAGE + movie_title_link
-    
-    # _navigate_to_movie_page(location, movie_info["link"])
     
     movie_info["dates"] = _extract_available_dates()
     movie_info["img"] = _extract_movie_image_url()

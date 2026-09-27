@@ -106,3 +106,4 @@ def create_bucket():
 if __name__ == "__main__":
     load_env()
     delete_file_from_bucket("carrickfergus.txt")
+    add_file("tmp/carrickfergus.txt", "carrickfergus.txt")
