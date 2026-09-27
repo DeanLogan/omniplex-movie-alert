@@ -34,7 +34,6 @@ def main():
     finally:
         print("finished")
 
-
 def lambda_handler(event, context):
     main()
     return {"statusCode": 200, "body": "finished"}

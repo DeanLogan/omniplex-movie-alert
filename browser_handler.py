@@ -118,10 +118,10 @@ def _extract_times_from_per_movie_div(movie_div: str, movie_title: str) -> Dict:
     showtimes = []
     for showtime_div in showtimes_div:
         showtimes.append({
-            "start_time": re.search(r'<h4 class="bigText mr-1 leading-none"[^>]*>\s*(\d{2}:\d{2})\s*</h4>', showtime_div).group(1),
-            "end_time": re.search(r'<p class="smallText leading-none"[^>]*>\s*-\s*(\d{2}:\d{2})\s*</p>', showtime_div).group(1),
-            "screen": re.search(r'<p class="smallText">(.*?)</p>', showtime_div).group(1),
-            "link": re.search(r'href="(.*?)" class="">', showtime_div).group(1),
+            "start_time": re.search(r'<h4 class="bigText mr-1 leading-none"[^>]*>\s*(\d{2}:\d{2})\s*</h4>', showtime_div, re.DOTALL).group(1).strip(),
+            "end_time": re.search(r'<p class="smallText leading-none"[^>]*>\s*-\s*(\d{2}:\d{2})\s*</p>', showtime_div, re.DOTALL).group(1).strip(),
+            "screen": re.search(r'<p class="smallText">(.*?)</p>', showtime_div, re.DOTALL).group(1).strip(),
+            "link": re.search(r'href="(.*?)" class="">', showtime_div, re.DOTALL).group(1).strip(),
         })
     
     return showtimes
